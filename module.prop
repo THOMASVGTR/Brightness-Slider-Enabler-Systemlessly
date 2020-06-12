@@ -1,0 +1,8 @@
+id=AutomaticBrightness
+name=Automatic Brightness for Custom Rom
+version=2.0
+versionCode=2000
+author=ThomasV (BANGLADESH)
+description=This tweaks can enable brightness automatically.
+minMagisk=1500
+builddate=2020/05/25 11:00PM

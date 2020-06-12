@@ -1,0 +1,163 @@
+#!/sbin/sh
+
+#################
+# Initialization
+#################
+
+umask 022
+
+# Global vars
+TMPDIR=/dev/tmp
+
+rm -rf $TMPDIR 2>/dev/null
+mkdir -p $TMPDIR
+
+# echo before loading util_functions
+ui_print() { echo "$1"; }
+
+require_new_magisk() {
+  ui_print "*******************************"
+  ui_print " Please install Magisk v20.0+! "
+  ui_print "*******************************"
+  exit 1
+}
+
+print_modname_logo() {
+VERSIONID=`grep_prop version $TMPDIR/module.prop`
+BUILDDATEID=`grep_prop builddate $TMPDIR/module.prop`
+AUTHORID=`grep_prop author $TMPDIR/module.prop`
+
+ui_print " ********* Automatic Brightness Enabler $VERSIONID *********"
+ui_print " Build date  : $BUILDDATEID"
+ui_print " Author      : $AUTHORID"
+ui_print " *************************************"
+ui_print " "
+ui_print " ******************** "
+ui_print "  topjohnwu by Magisk "
+ui_print " ******************** "
+ui_print " "
+ui_print " Edited & Configured this module by THOMASV. "
+ui_print " "
+ui_print " Credit goes to Weebgapps Community Developers. "
+ui_print " "
+}
+
+
+Check_architecture() {
+    ui_print "...Checking your architecture of the device..."
+
+    if [ $ARCH = "arm64" ]; then
+        ui_print "-- You're on ARM64 platform !"
+		abort "! This module only support ARM devices !"
+    elif [ $ARCH = "arm" ]; then
+        ui_print "-- You're on ARM platform ! Great !"  
+    else
+		ui_print "Invalid architecture !"
+        abort "! This module only support ARM 32 bit devices. Not for ARM 64bit CPU based devices."
+    fi
+}
+
+do_zipalign() {
+unzip -o "$ZIPFILE" zipalign -d $TMPDIR >&2
+chmod 775 $TMPDIR/zipalign
+ui_print "- Zipalign-ing~"
+for apk in $MODPATH/system/priv-app/*/*.apk $MODPATH/system/app/*/*.apk; do
+   $zipalign -c -v 4 $apk 1>&2;
+done;
+}
+
+##############
+# Environment
+##############
+
+OUTFD=$2
+ZIPFILE=$3
+
+mount /data 2>/dev/null
+
+# Load utility functions
+[ -f /data/adb/magisk/util_functions.sh ] || require_new_magisk
+. /data/adb/magisk/util_functions.sh
+[ $MAGISK_VER_CODE -gt 20000 ] || require_new_magisk
+
+# Extract prop file
+unzip -o "$ZIPFILE" module.prop -d $TMPDIR >&2
+[ ! -f $TMPDIR/module.prop ] && abort "! Unable to extract zip file!"
+
+$BOOTMODE && MODDIRNAME=modules_update || MODDIRNAME=modules
+MODULEROOT=$NVBASE/$MODDIRNAME
+MODID=`grep_prop id $TMPDIR/module.prop`
+MODPATH=$MODULEROOT/$MODID
+MODNAME=`grep_prop name $TMPDIR/module.prop`
+zipalign=$TMPDIR/zipalign
+MAGISKVER=`echo $MAGISK_VER_CODE|cut -c1-5`
+
+REPLACE="
+"
+
+##############
+# Prepare
+##############
+
+# Welcome
+print_modname_logo
+
+# Preperation for flashable zips
+setup_flashable
+
+# Mount partitions
+mount_partitions
+
+# Detect version and architecture
+api_level_arch_detect
+
+# Custom script
+Check_Andorid_Version
+Check_architecture
+
+# Setup busybox and binaries
+$BOOTMODE && boot_actions || recovery_actions
+
+# Create mod paths
+rm -rf $MODPATH 2>/dev/null
+mkdir -p $MODPATH
+
+##########
+# Install
+##########
+
+ui_print "- Unzip module files and installing..."
+unzip -o "$ZIPFILE" 'system/*' module.prop system.prop service.sh -d $MODPATH >&2
+
+# Default permissions
+ui_print "- Setting permissions"
+set_perm_recursive $MODPATH 0 0 0755 0644
+
+# Zipalign
+do_zipalign
+
+# Handle replace folders
+for TARGET in $REPLACE; do
+  ui_print "- Replace target: $TARGET"
+  mktouch $MODPATH$TARGET/.replace
+done
+
+if $BOOTMODE; then
+  # Update info for Magisk Manager
+  mktouch $NVBASE/modules/$MODID/update
+  cp -af $MODPATH/module.prop $NVBASE/modules/$MODID/module.prop
+fi
+
+# Remove stuffs that don't belong to modules
+rm -rf $MODPATH/system/placeholder 2>/dev/null
+
+##############
+# Finalizing
+##############
+
+cd /
+$BOOTMODE || recovery_cleanup
+rm -rf $TMPDIR
+
+ui_print "- All Done !!! Enjoy."
+exit 0
