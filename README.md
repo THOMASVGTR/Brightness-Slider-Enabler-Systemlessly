@@ -8,3 +8,6 @@ For DOWNLOADING AS ZIP INSTRUCTIONS:
 
 After downloading this zip file then unzip it.
 This is the original zip file of the module. Flash this unzipped zip file.
+
+# DOWNLOAD LINK:
+https://thomasvgtr.github.io/Brightness-Slider-Enabler-Systemlessly/
